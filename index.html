@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Info Gempa BMKG</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
+    h1 { color: #333; text-align: center; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; background: #fff; }
+    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+    th { background: #333; color: #fff; }
+    .status-hijau { background: #b6fcb6; }
+    .status-kuning { background: #fff7a3; }
+    .status-merah { background: #f7a3a3; }
+  </style>
+</head>
+<body>
+  <h1>Info Gempa Terkini (BMKG)</h1>
+  <table>
+    <thead>
+      <tr>
+        <th>Waktu</th>
+        <th>Magnitudo</th>
+        <th>Kedalaman</th>
+        <th>Lokasi</th>
+        <th>Koordinat</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody id="gempaData">
+      <tr><td colspan="6">Memuat data...</td></tr>
+    </tbody>
+  </table>
+
+  <script>
+    async function loadGempa() {
+      try {
+        let url = "https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json";
+        let response = await fetch(url);
+        let data = await response.json();
+        let gempaList = data.Infogempa.gempa;
+
+        let tbody = document.getElementById("gempaData");
+        tbody.innerHTML = "";
+
+        gempaList.forEach((g) => {
+          let statusClass = "status-hijau";
+          if (parseFloat(g.Magnitude) >= 6.0) statusClass = "status-merah";
+          else if (parseFloat(g.Magnitude) >= 5.0) statusClass = "status-kuning";
+
+          let row = `
+            <tr class="${statusClass}">
+              <td>${g.Tanggal} ${g.Jam}</td>
+              <td>${g.Magnitude} SR</td>
+              <td>${g.Kedalaman}</td>
+              <td>${g.Wilayah}</td>
+              <td>${g.Coordinates}</td>
+              <td>${statusClass === "status-hijau" ? "Aman" : statusClass === "status-kuning" ? "Waspada" : "Bahaya"}</td>
+            </tr>
+          `;
+          tbody.innerHTML += row;
+        });
+      } catch (e) {
+        document.getElementById("gempaData").innerHTML = "<tr><td colspan='6'>Gagal memuat data</td></tr>";
+      }
+    }
+
+    loadGempa();
+  </script>
+</body>
+</html>
