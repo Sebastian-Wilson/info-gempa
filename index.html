@@ -3,36 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <title>Info Gempa BMKG</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <style>
-    body { font-family: Arial, sans-serif; background: #f9f9f9; padding: 20px; }
-    h1 { color: #333; text-align: center; }
-    table { border-collapse: collapse; width: 100%; margin-top: 20px; background: #fff; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
-    th { background: #333; color: #fff; }
-    .status-hijau { background: #b6fcb6; }
-    .status-kuning { background: #fff7a3; }
-    .status-merah { background: #f7a3a3; }
+    /* ==== GLOBAL DARK MODE ==== */
+    body { 
+      font-family: Arial, sans-serif; 
+      background: #1e1e1e; 
+      color: #e0e0e0; 
+      margin: 0; 
+      padding: 0; 
+    }
+    header { 
+      background: #003366; 
+      color: white; 
+      padding: 15px; 
+      text-align: center; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.6);
+    }
+    h1 { margin: 0; font-size: 22px; }
+    .container { 
+      display: grid; 
+      grid-template-columns: 1fr 2fr; 
+      gap: 10px; 
+      padding: 15px; 
+    }
+    table { 
+      border-collapse: collapse; 
+      width: 100%; 
+      background: #2a2a2a; 
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    th, td { 
+      border: 1px solid #444; 
+      padding: 8px; 
+      text-align: center; 
+      font-size: 14px; 
+    }
+    th { background: #004080; color: #fff; }
+    tr:nth-child(even) { background: #2f2f2f; }
+    .status-hijau { background: #276b27 !important; color: #fff; }
+    .status-kuning { background: #9c9500 !important; color: #fff; }
+    .status-merah { background: #7a1d1d !important; color: #fff; }
+    #map { 
+      height: 500px; 
+      width: 100%; 
+      border: 2px solid #004080; 
+      border-radius: 6px; 
+    }
+    footer { 
+      background: #003366; 
+      color: white; 
+      text-align: center; 
+      padding: 10px; 
+      margin-top: 10px; 
+      font-size: 13px;
+    }
+    #lastUpdate { 
+      font-size: 13px; 
+      margin-top: 5px; 
+      text-align: center; 
+      color: #ccc; 
+    }
+    a { color: #ffcc00; }
   </style>
 </head>
 <body>
-  <h1>Info Gempa Terkini (BMKG)</h1>
-  <table>
-    <thead>
-      <tr>
-        <th>Waktu</th>
-        <th>Magnitudo</th>
-        <th>Kedalaman</th>
-        <th>Lokasi</th>
-        <th>Koordinat</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody id="gempaData">
-      <tr><td colspan="6">Memuat data...</td></tr>
-    </tbody>
-  </table>
+  <header>
+    <h1>Info Gempa Terkini - BMKG (Sederhana)</h1>
+    <div id="lastUpdate">Memuat data...</div>
+  </header>
 
+  <div class="container">
+    <!-- Tabel Data Gempa -->
+    <div>
+      <table>
+        <thead>
+          <tr>
+            <th>Waktu</th>
+            <th>Magnitudo</th>
+            <th>Kedalaman</th>
+            <th>Lokasi</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="gempaData">
+          <tr><td colspan="5">Memuat data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Peta -->
+    <div id="map"></div>
+  </div>
+
+  <footer>
+    Data sumber: <a href="https://bmkg.go.id" target="_blank">BMKG</a> | Website sederhana by GitHub Pages
+  </footer>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
+    let map; 
+    let markers = [];
+
     async function loadGempa() {
       try {
         let url = "https://data.bmkg.go.id/DataMKG/TEWS/gempaterkini.json";
@@ -40,10 +114,14 @@
         let data = await response.json();
         let gempaList = data.Infogempa.gempa;
 
+        // Update waktu terakhir refresh
+        document.getElementById("lastUpdate").innerText = "Terakhir update: " + new Date().toLocaleTimeString();
+
+        // Isi tabel
         let tbody = document.getElementById("gempaData");
         tbody.innerHTML = "";
 
-        gempaList.forEach((g) => {
+        gempaList.forEach((g, idx) => {
           let statusClass = "status-hijau";
           if (parseFloat(g.Magnitude) >= 6.0) statusClass = "status-merah";
           else if (parseFloat(g.Magnitude) >= 5.0) statusClass = "status-kuning";
@@ -54,18 +132,51 @@
               <td>${g.Magnitude} SR</td>
               <td>${g.Kedalaman}</td>
               <td>${g.Wilayah}</td>
-              <td>${g.Coordinates}</td>
               <td>${statusClass === "status-hijau" ? "Aman" : statusClass === "status-kuning" ? "Waspada" : "Bahaya"}</td>
             </tr>
           `;
           tbody.innerHTML += row;
+
+          // Tambah marker di peta
+          let [lat, lon] = g.Coordinates.split(",").map(Number);
+          let marker = L.marker([lat, lon]).addTo(map);
+          marker.bindPopup(`
+            <b>${g.Wilayah}</b><br>
+            Magnitudo: ${g.Magnitude} SR<br>
+            Kedalaman: ${g.Kedalaman}<br>
+            Waktu: ${g.Tanggal} ${g.Jam}
+          `);
+
+          markers.push(marker);
+
+          if (idx === 0) {
+            map.setView([lat, lon], 6);
+            marker.openPopup();
+          }
         });
       } catch (e) {
-        document.getElementById("gempaData").innerHTML = "<tr><td colspan='6'>Gagal memuat data</td></tr>";
+        document.getElementById("gempaData").innerHTML = "<tr><td colspan='5'>Gagal memuat data</td></tr>";
+        console.error(e);
       }
     }
 
+    // Inisialisasi peta sekali saja
+    function initMap() {
+      map = L.map("map").setView([-2.5, 118], 5);
+      L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", {
+        attribution: "&copy; OpenStreetMap contributors | HOT"
+      }).addTo(map);
+    }
+
+    initMap();
     loadGempa();
+
+    // Auto-refresh tiap 1 menit
+    setInterval(() => {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      loadGempa();
+    }, 60000);
   </script>
 </body>
 </html>
